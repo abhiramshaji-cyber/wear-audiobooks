@@ -26,9 +26,15 @@ on, at the second you left it.
 
 ## Getting the APK
 
-GitHub Actions builds it on every push to `main`. Go to the **Actions** tab, open the latest `build`
-run, and download the `books-debug-apk` artifact. Unzip it to get `app-debug.apk`. Releases also
-carry a prebuilt APK.
+GitHub Actions builds a **signed release APK** on every push to `main`. Go to the **Actions** tab,
+open the latest `build` run, and download the `books-apk` artifact. Unzip it to get
+`app-release.apk`. Tagging `vX.Y` also attaches it to the GitHub release.
+
+Every build — CI or local — is signed with the same key, so `adb install -r` always works. That
+matters: a signature mismatch forces an uninstall, and uninstalling wipes every saved position. The
+key lives in `~/.android/wear-audiobooks.jks` on my Mac and in the repo's `KEYSTORE_BASE64` /
+`KEYSTORE_PASSWORD` Actions secrets. `keystore.properties` (gitignored) points the local build at it;
+without that file `assembleRelease` produces an unsigned APK.
 
 ## Installing on the watch
 
@@ -41,7 +47,7 @@ The Watch 2R has no USB port, so use ADB over WiFi.
 
 ```sh
 adb connect <watch-ip>:<port>       # accept the prompt on the watch
-adb install -r app-debug.apk
+adb install -r app-release.apk
 adb shell appops set com.abhiram.audiobooks MANAGE_EXTERNAL_STORAGE allow
 ```
 
@@ -88,5 +94,9 @@ positions do live inside it, so update with `adb install -r` rather than uninsta
 Requires JDK 17 and the Android SDK.
 
 ```sh
-./gradlew assembleDebug
+./gradlew assembleRelease   # needs keystore.properties, see above
+./gradlew assembleDebug     # unsigned-for-development, no keystore needed
 ```
+
+R8 is off in release on purpose: shrinking would make the shipped app differ from the one tested on
+the emulator, and there is nothing here worth shrinking.

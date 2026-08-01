@@ -1,7 +1,14 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+// Kept out of git. Absent on CI, which only needs to prove the app compiles.
+val keystore = rootProject.file("keystore.properties").takeIf { it.exists() }?.let {
+    Properties().apply { it.inputStream().use(::load) }
 }
 
 android {
@@ -16,9 +23,22 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        if (keystore != null) {
+            create("release") {
+                storeFile = file(keystore.getProperty("storeFile"))
+                storePassword = keystore.getProperty("storePassword")
+                keyAlias = keystore.getProperty("keyAlias")
+                keyPassword = keystore.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Left off deliberately: R8 would make the shipped app differ from the tested one.
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

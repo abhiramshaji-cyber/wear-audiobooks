@@ -3,6 +3,7 @@ name: build
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 jobs:
@@ -18,10 +19,38 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - run: ./gradlew assembleDebug --no-daemon
+      # The same key every build, so `adb install -r` never hits a signature mismatch —
+      # a mismatch would force an uninstall, which wipes every saved listening position.
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/books.jks"
+          cat > keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/books.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=books
+          keyPassword=$KEYSTORE_PASSWORD
+          EOF
+
+      - run: ./gradlew assembleRelease --no-daemon
+
+      - name: Check the APK is signed
+        run: |
+          "$ANDROID_HOME"/build-tools/34.0.0/apksigner verify --print-certs \
+            app/build/outputs/apk/release/app-release.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: books-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: books-apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk books.apk
+          gh release upload "${GITHUB_REF_NAME}" books.apk --clobber
