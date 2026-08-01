@@ -1,0 +1,92 @@
+# Books
+
+A deliberately tiny Wear OS audiobook player for offline `.mp3` / `.m4b` files. Built for a
+OnePlus Watch 2R (Wear OS 4), personal use.
+
+The whole point is that it never loses your place. Every audio file remembers its own position, and
+the position is written to disk every 5 seconds while playing plus on every pause, seek, chapter
+change, and shutdown — with a synchronous, fsynced write. So it survives all of these:
+
+- swiping the app away (playback keeps going in a foreground service)
+- the system force-closing the app to save battery
+- a crash
+- a flat battery or a reboot
+
+Worst case you lose the last 5 seconds. Open the app and it goes straight back to the file you were
+on, at the second you left it.
+
+- **Library** — one folder, `/sdcard/Audiobooks`, browsed as folders and files. Sorted naturally, so
+  `Chapter 2` comes before `Chapter 10`.
+- **Player** — title, elapsed / total, a progress bar, and three big buttons: back 30s, play/pause,
+  forward 30s. Swipe right to go back to the library.
+- Finishing a file auto-plays the next one in the same folder, and marks the finished one `finished`.
+- Reopening a `finished` file starts it over; reopening any other file resumes it.
+- Playback pauses when Bluetooth disconnects, and holds a wake lock so the watch dozing off does not
+  stall a chapter.
+
+## Getting the APK
+
+GitHub Actions builds it on every push to `main`. Go to the **Actions** tab, open the latest `build`
+run, and download the `books-debug-apk` artifact. Unzip it to get `app-debug.apk`. Releases also
+carry a prebuilt APK.
+
+## Installing on the watch
+
+The Watch 2R has no USB port, so use ADB over WiFi.
+
+1. On the watch: **Settings > System > About > Build number**, tap 7 times to enable developer options.
+2. **Settings > Developer options**, turn on **ADB debugging** and **Debug over WiFi**.
+3. Note the IP and port shown under Debug over WiFi.
+4. From this machine, with the watch on the same WiFi network:
+
+```sh
+adb connect <watch-ip>:<port>       # accept the prompt on the watch
+adb install -r app-debug.apk
+adb shell appops set com.abhiram.audiobooks MANAGE_EXTERNAL_STORAGE allow
+```
+
+**That third command is required, once per install.** Without it the app can only see files Android
+happened to index as audio, which excludes every `.m4b` and anything you just pushed. Wear OS ships
+no Settings screen and no file picker to grant this on the watch itself, so ADB is the only way —
+the app says so on screen if you skip it.
+
+On first launch the watch will also ask for music/audio and notification access. Allow both.
+
+## Putting books on the watch
+
+```sh
+adb push "My Book" /sdcard/Audiobooks/
+adb push "Some Other Book.m4b" /sdcard/Audiobooks/
+```
+
+Anything under `/sdcard/Audiobooks` shows up, nested as deep as you like. Recognised extensions:
+`mp3 m4a m4b aac ogg oga opus flac wav`. Reopen the app and new files appear — it rescans every time
+it comes to the foreground.
+
+Books live outside the app's sandbox, so uninstalling the app does not delete them. Listening
+positions do live inside it, so update with `adb install -r` rather than uninstalling first.
+
+## Design notes
+
+- **Media3 / ExoPlayer in a `MediaSessionService`.** The player lives in the service, not the UI, so
+  closing the app cannot stop playback, and Wear gets a proper media notification and watch-face
+  ongoing activity for free.
+- **Positions in `SharedPreferences`, always `commit()`.** Not DataStore: `commit()` is synchronous
+  and fsynced, so a saved position is on disk before the call returns, and reads are instant, which
+  lets playback start at the right position with no async window.
+- **Progress is keyed by path relative to `/sdcard/Audiobooks`**, so moving the whole library keeps
+  every position.
+- **Files must live in shared storage, not the app's own external dir.** Files `adb push`es into
+  `Android/data/<pkg>/` stay owned by `shell` and the app genuinely cannot read them; shared storage
+  normalises ownership.
+- No audio offload. It saves battery, but it changes how positions are reported, and not losing your
+  place matters more than an hour of runtime.
+- No playback speed control, on purpose. Ask if you want it.
+
+## Building locally
+
+Requires JDK 17 and the Android SDK.
+
+```sh
+./gradlew assembleDebug
+```
