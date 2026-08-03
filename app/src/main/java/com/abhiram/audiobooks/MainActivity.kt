@@ -322,10 +322,14 @@ private fun ProgressRing(fraction: Float, accent: Color) {
 @UnstableApi
 @Composable
 private fun PlayerScreen(vm: PlayerViewModel) {
-    LaunchedEffect(Unit) {
-        while (true) {
-            vm.refresh()
-            delay(500)
+    val owner = LocalLifecycleOwner.current
+    // Only while visible: polling twice a second behind a dark screen is pure battery drain.
+    LaunchedEffect(owner) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                vm.refresh()
+                delay(500)
+            }
         }
     }
     val accent = accentFor(vm.nowPlaying.orEmpty())
