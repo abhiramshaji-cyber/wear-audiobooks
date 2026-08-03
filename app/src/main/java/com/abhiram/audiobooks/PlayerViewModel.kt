@@ -14,6 +14,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @UnstableApi
 class PlayerViewModel(app: Application) : AndroidViewModel(app) {
@@ -32,6 +34,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     var position by mutableStateOf(0L)
         private set
     var duration by mutableStateOf(0L)
+        private set
+
+    /** Bumped on delete so the library re-reads the folder immediately instead of on the next tick. */
+    var libraryVersion by mutableStateOf(0)
         private set
 
     /** Known before the controller connects, so launch can go straight to the player screen. */
@@ -87,6 +93,33 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         isPlaying = connected.isPlaying
         position = connected.currentPosition.coerceAtLeast(0)
         duration = connected.duration.takeIf { it > 0 } ?: nowPlaying?.let { progress.duration(it) } ?: 0L
+    }
+
+    /** Deletes a track or a whole book, then drops its saved positions and unqueues it. */
+    suspend fun delete(entry: Entry) {
+        val id = library.idOf(entry.file)
+        withContext(Dispatchers.IO) { library.delete(entry) }
+        dropMissingFromQueue()
+        progress.forget(id)
+        libraryVersion++
+    }
+
+    /**
+     * Playing a file that no longer exists errors out, so a deleted file leaves the queue at once:
+     * the whole queue if it was the file being played, otherwise just its own entry.
+     */
+    private suspend fun dropMissingFromQueue() {
+        val connected = controller ?: return
+        val ids = (0 until connected.mediaItemCount).map { connected.getMediaItemAt(it).mediaId }
+        val missing = withContext(Dispatchers.IO) { ids.filterTo(HashSet()) { library.resolve(it) == null } }
+        if (missing.isEmpty()) return
+        if (connected.currentMediaItem?.mediaId in missing) {
+            connected.stop()
+            connected.clearMediaItems()
+        } else {
+            ids.indices.reversed().forEach { if (ids[it] in missing) connected.removeMediaItem(it) }
+        }
+        refresh()
     }
 
     /** Reopens the last file paused at its saved position rather than starting the library cold. */

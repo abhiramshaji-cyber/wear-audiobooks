@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
+import androidx.wear.compose.foundation.ExperimentalWearFoundationApi
+import androidx.wear.compose.foundation.rememberRevealState
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -48,14 +51,20 @@ import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.ExperimentalWearMaterialApi
+import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.ListHeader
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
+import androidx.wear.compose.material.SwipeToRevealChip
+import androidx.wear.compose.material.SwipeToRevealDefaults
+import androidx.wear.compose.material.SwipeToRevealPrimaryAction
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -125,7 +134,8 @@ private fun BrowseScreen(
     val listState = rememberScalingLazyListState()
 
     Scaffold(
-        timeText = { TimeText() },
+        // Only at the top: scrolled chips pass under the clock and collide with it.
+        timeText = { if (listState.centerItemIndex <= 1) TimeText() },
         positionIndicator = { PositionIndicator(listState) },
     ) {
         ScalingLazyColumn(
@@ -149,16 +159,9 @@ private fun BrowseScreen(
                     NowPlayingChip(vm.title, vm.isPlaying, accentFor(vm.nowPlaying.orEmpty()), onOpenPlayer)
                 }
             }
-            items(entries) { entry ->
-                when (entry) {
-                    is Folder -> BookChip(entry.name, null, accentFor(entry.name), null) { onEnter(entry.dir) }
-                    is Track -> BookChip(
-                        label = entry.name,
-                        secondary = remainingLabel(vm.progress, entry.id),
-                        accent = accentFor(entry.name),
-                        fraction = playedFraction(vm.progress, entry.id),
-                        onClick = { onPlay(entry) },
-                    )
+            items(entries, key = { it.file.path }) { entry ->
+                DeletableEntry(entry, vm) {
+                    if (entry is Folder) onEnter(entry.file) else onPlay(entry as Track)
                 }
             }
             // Shown alongside whatever did surface, so a partly readable library is never silent.
@@ -192,7 +195,7 @@ private fun BrowseScreen(
 private fun liveEntries(vm: PlayerViewModel, dir: File): List<Entry> {
     val owner = LocalLifecycleOwner.current
     var entries by remember(dir) { mutableStateOf(emptyList<Entry>()) }
-    LaunchedEffect(dir, owner) {
+    LaunchedEffect(dir, owner, vm.libraryVersion) {
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
                 val scanned = withContext(Dispatchers.IO) { vm.library.list(dir) }
@@ -202,6 +205,41 @@ private fun liveEntries(vm: PlayerViewModel, dir: File): List<Entry> {
         }
     }
     return entries
+}
+
+/** Swipe left to reveal Delete: the platform gesture, and the only way to free space on the watch. */
+@UnstableApi
+@OptIn(ExperimentalWearMaterialApi::class, ExperimentalWearFoundationApi::class)
+@Composable
+private fun DeletableEntry(entry: Entry, vm: PlayerViewModel, onClick: () -> Unit) {
+    val revealState = rememberRevealState()
+    val scope = rememberCoroutineScope()
+    val delete = { scope.launch { vm.delete(entry) } }
+    SwipeToRevealChip(
+        revealState = revealState,
+        onFullSwipe = { delete() },
+        primaryAction = {
+            SwipeToRevealPrimaryAction(
+                revealState = revealState,
+                icon = { Icon(SwipeToRevealDefaults.Delete, "Delete") },
+                label = { Text("Delete") },
+                onClick = { delete() },
+            )
+        },
+    ) {
+        if (entry is Folder) {
+            BookChip(entry.name, null, accentFor(entry.name), null, onClick)
+        } else {
+            val track = entry as Track
+            BookChip(
+                label = track.name,
+                secondary = remainingLabel(vm.progress, track.id),
+                accent = accentFor(track.name),
+                fraction = playedFraction(vm.progress, track.id),
+                onClick = onClick,
+            )
+        }
+    }
 }
 
 @Composable

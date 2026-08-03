@@ -29,6 +29,7 @@ class PlayerService : MediaSessionService() {
     private lateinit var store: ProgressStore
     private val handler = Handler(Looper.getMainLooper())
     private val tracker = Tracker()
+    private val library = Library()
 
     override fun onCreate() {
         super.onCreate()
@@ -85,6 +86,8 @@ class PlayerService : MediaSessionService() {
 
         fun record() {
             val id = player.currentMediaItem?.mediaId ?: return
+            // A tick can land after the file was deleted, which would resurrect the position it just lost.
+            if (library.resolve(id) == null) return
             val position = player.currentPosition
             if (id == savedId && Math.abs(position - savedPosition) < SAVE_EPSILON_MS) return
             val duration = player.duration.let { if (it == C.TIME_UNSET) store.duration(id) else it }

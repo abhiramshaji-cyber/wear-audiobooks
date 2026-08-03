@@ -12,11 +12,12 @@ private val AUDIO_EXTENSIONS = setOf("mp3", "m4a", "m4b", "aac", "ogg", "oga", "
 
 sealed interface Entry {
     val name: String
+    val file: File
 }
 
-data class Folder(val dir: File, override val name: String) : Entry
+data class Folder(override val file: File, override val name: String) : Entry
 
-data class Track(val file: File, val id: String, override val name: String) : Entry
+data class Track(override val file: File, val id: String, override val name: String) : Entry
 
 /**
  * One fixed folder in shared storage. Not the app's own external files dir: files pushed there by
@@ -60,8 +61,11 @@ class Library {
         else -> "No books yet"
     }
 
+    /** Recursive so one call removes a single track or a whole book folder. */
+    fun delete(entry: Entry): Boolean = entry.file.deleteRecursively()
+
     /** Ids are paths relative to the root, so moving the whole library keeps every position. */
-    private fun idOf(file: File) = file.absolutePath.removePrefix(root.absolutePath).trimStart('/')
+    fun idOf(file: File) = file.absolutePath.removePrefix(root.absolutePath).trimStart('/')
 
     private fun File.isAudio() = isFile && extension.lowercase() in AUDIO_EXTENSIONS
 

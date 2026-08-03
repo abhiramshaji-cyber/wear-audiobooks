@@ -35,6 +35,19 @@ class ProgressStore(context: Context) {
         prefs.edit().putBoolean("done:$id", true).commit()
     }
 
+    /** Drops every position under a deleted track or folder, so freeing space frees its keys too. */
+    fun forget(id: String) {
+        val editor = prefs.edit()
+        prefs.all.keys.filter { it != "last" }.forEach {
+            if (it.substringAfter(':').isUnder(id)) editor.remove(it)
+        }
+        if (lastPlayed?.isUnder(id) == true) editor.remove("last")
+        editor.commit()
+    }
+
+    /** Prefix match on a path boundary: deleting "Dune" must not touch "Dune 2.mp3". */
+    private fun String.isUnder(id: String) = this == id || startsWith("$id/")
+
     /** The file to reopen on launch, so the app never lands on a cold library. */
     var lastPlayed: String?
         get() = prefs.getString("last", null)

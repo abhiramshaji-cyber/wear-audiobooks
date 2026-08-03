@@ -19,6 +19,9 @@ on, at the second you left it.
   `Chapter 2` comes before `Chapter 10`.
 - **Player** — title, elapsed / total, progress drawn as an arc around the bezel, and three big
   buttons: back 30s, play/pause, forward 30s. Swipe right to go back to the library.
+- **Swipe a row left** to reveal **Delete**, then tap it (or swipe all the way) to delete that file or
+  that whole book folder from the watch. It also drops the saved positions under it, and stops
+  playback if you deleted what was playing. Same all-files access as reading, so no extra setup.
 - Each book keeps a stable accent colour, and every part-listened file shows a progress ring plus how
   much time is left.
 - Finishing a file auto-plays the next one in the same folder, and marks the finished one `finished`.
