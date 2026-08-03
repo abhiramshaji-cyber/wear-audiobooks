@@ -5,9 +5,8 @@ import java.io.File
 
 const val LIBRARY_DIR = "Audiobooks"
 
-const val ACCESS_HINT = "Needs full storage access.\nOn your computer run:\n\n" +
-    "adb shell appops set\ncom.abhiram.audiobooks\nMANAGE_EXTERNAL_\nSTORAGE allow\n\n" +
-    "then reopen Books."
+/** The grant itself needs adb; the README carries the command so the watch screen stays clean. */
+const val ACCESS_HINT = "No storage access"
 
 private val AUDIO_EXTENSIONS = setOf("mp3", "m4a", "m4b", "aac", "ogg", "oga", "opus", "flac", "wav")
 
@@ -56,9 +55,9 @@ class Library {
     /** Why the library looks empty, so a permission problem never reads as "no books". */
     fun emptyReason(): String = when {
         !hasFullAccess() -> ACCESS_HINT
-        !root.exists() -> "No folder yet.\nPush books to\n/sdcard/$LIBRARY_DIR"
-        root.listFiles() == null -> "Cannot read\n/sdcard/$LIBRARY_DIR"
-        else -> "No audio files in\n/sdcard/$LIBRARY_DIR"
+        !root.exists() -> "No /$LIBRARY_DIR folder"
+        root.listFiles() == null -> "Cannot read /$LIBRARY_DIR"
+        else -> "No books yet"
     }
 
     /** Ids are paths relative to the root, so moving the whole library keeps every position. */

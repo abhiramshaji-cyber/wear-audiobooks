@@ -17,8 +17,10 @@ on, at the second you left it.
 
 - **Library** — one folder, `/sdcard/Audiobooks`, browsed as folders and files. Sorted naturally, so
   `Chapter 2` comes before `Chapter 10`.
-- **Player** — title, elapsed / total, a progress bar, and three big buttons: back 30s, play/pause,
-  forward 30s. Swipe right to go back to the library.
+- **Player** — title, elapsed / total, progress drawn as an arc around the bezel, and three big
+  buttons: back 30s, play/pause, forward 30s. Swipe right to go back to the library.
+- Each book keeps a stable accent colour, and every part-listened file shows a progress ring plus how
+  much time is left.
 - Finishing a file auto-plays the next one in the same folder, and marks the finished one `finished`.
 - Reopening a `finished` file starts it over; reopening any other file resumes it.
 - Playback pauses when Bluetooth disconnects, and holds a wake lock so the watch dozing off does not
@@ -54,7 +56,7 @@ adb shell appops set com.abhiram.audiobooks MANAGE_EXTERNAL_STORAGE allow
 **That third command is required, once per install.** Without it the app can only see files Android
 happened to index as audio, which excludes every `.m4b` and anything you just pushed. Wear OS ships
 no Settings screen and no file picker to grant this on the watch itself, so ADB is the only way —
-the app says so on screen if you skip it.
+skip it and the app just says "No storage access".
 
 On first launch the watch will also ask for music/audio and notification access. Allow both.
 
@@ -66,8 +68,9 @@ adb push "Some Other Book.m4b" /sdcard/Audiobooks/
 ```
 
 Anything under `/sdcard/Audiobooks` shows up, nested as deep as you like. Recognised extensions:
-`mp3 m4a m4b aac ogg oga opus flac wav`. Reopen the app and new files appear — it rescans every time
-it comes to the foreground.
+`mp3 m4a m4b aac ogg oga opus flac wav`. New files appear on their own within a couple of seconds —
+the library screen re-reads the folder on a short interval while it is on screen (and only while it
+is, so a pocketed watch scans nothing).
 
 Books live outside the app's sandbox, so uninstalling the app does not delete them. Listening
 positions do live inside it, so update with `adb install -r` rather than uninstalling first.
