@@ -15,8 +15,10 @@ change, and shutdown — with a synchronous, fsynced write. So it survives all o
 Worst case you lose the last 5 seconds. Open the app and it goes straight back to the file you were
 on, at the second you left it.
 
-- **Library** — one folder, `/sdcard/Audiobooks`, browsed as folders and files. Sorted naturally, so
-  `Chapter 2` comes before `Chapter 10`.
+- **Library** — two folders, `/sdcard/Audiobooks` and `/sdcard/Music`, listed side by side on the
+  first screen and browsed as folders and files. Sorted naturally, so `Chapter 2` comes before
+  `Chapter 10`. A source folder only appears if it holds audio, and it cannot itself be deleted
+  from the watch.
 - **Player** — title, elapsed / total, progress drawn as an arc around the bezel, and three big
   buttons: back 30s, play/pause, forward 30s. Swipe right to go back to the library.
 - **Swipe a row left** to reveal **Delete**, then tap it (or swipe all the way) to delete that file or
@@ -67,10 +69,10 @@ On first launch the watch will also ask for music/audio and notification access.
 
 ```sh
 adb push "My Book" /sdcard/Audiobooks/
-adb push "Some Other Book.m4b" /sdcard/Audiobooks/
+adb push "Some Other Book.m4b" /sdcard/Music/
 ```
 
-Anything under `/sdcard/Audiobooks` shows up, nested as deep as you like. Recognised extensions:
+Anything under `/sdcard/Audiobooks` or `/sdcard/Music` shows up, nested as deep as you like. Recognised extensions:
 `mp3 m4a m4b aac ogg oga opus flac wav`. New files appear on their own within a couple of seconds —
 the library screen re-reads the folder on a short interval while it is on screen (and only while it
 is, so a pocketed watch scans nothing).
@@ -86,7 +88,8 @@ positions do live inside it, so update with `adb install -r` rather than uninsta
 - **Positions in `SharedPreferences`, always `commit()`.** Not DataStore: `commit()` is synchronous
   and fsynced, so a saved position is on disk before the call returns, and reads are instant, which
   lets playback start at the right position with no async window.
-- **Progress is keyed by path relative to `/sdcard/Audiobooks`**, so moving the whole library keeps
+- **Progress is keyed by path relative to `/sdcard`** (positions saved by older builds, keyed
+  relative to `/sdcard/Audiobooks`, still resolve), so moving a book inside a source folder keeps
   every position.
 - **Files must live in shared storage, not the app's own external dir.** Files `adb push`es into
   `Android/data/<pkg>/` stay owned by `shell` and the app genuinely cannot read them; shared storage

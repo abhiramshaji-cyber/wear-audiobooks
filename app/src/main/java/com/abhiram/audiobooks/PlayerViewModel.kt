@@ -97,6 +97,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Deletes a track or a whole book, then drops its saved positions and unqueues it. */
     suspend fun delete(entry: Entry) {
+        if (library.isSource(entry.file)) return
         val id = library.idOf(entry.file)
         withContext(Dispatchers.IO) { library.delete(entry) }
         dropMissingFromQueue()
