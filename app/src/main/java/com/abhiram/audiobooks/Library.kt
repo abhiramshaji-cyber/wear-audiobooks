@@ -3,7 +3,7 @@ package com.abhiram.audiobooks
 import android.os.Environment
 import java.io.File
 
-const val LIBRARY_DIR = "Audiobooks"
+val LIBRARY_DIRS = listOf("Audiobooks", "Music")
 
 /** The grant itself needs adb; the README carries the command so the watch screen stays clean. */
 const val ACCESS_HINT = "No storage access"
@@ -20,15 +20,21 @@ data class Folder(override val file: File, override val name: String) : Entry
 data class Track(override val file: File, val id: String, override val name: String) : Entry
 
 /**
- * One fixed folder in shared storage. Not the app's own external files dir: files pushed there by
- * `adb` stay owned by `shell` and the app cannot read them, while shared storage normalises
- * ownership so anything pushed is readable.
+ * A fixed set of folders in shared storage. Not the app's own external files dir: files pushed
+ * there by `adb` stay owned by `shell` and the app cannot read them, while shared storage
+ * normalises ownership so anything pushed is readable.
  */
 class Library {
 
-    val root: File = File(Environment.getExternalStorageDirectory(), LIBRARY_DIR)
+    val root: File = Environment.getExternalStorageDirectory()
+
+    private val sources = LIBRARY_DIRS.map { File(root, it) }
+
+    /** Ids used to be relative to /Audiobooks, so saved positions predate the other sources. */
+    private val legacyRoot = sources.first()
 
     fun list(dir: File): List<Entry> {
+        if (dir == root) return sources.filter { it.isDirectory && it.containsAudio() }.map { Folder(it, it.name) }
         val children = dir.listFiles() ?: return emptyList()
         val folders = children.filter { it.isDirectory && it.containsAudio() }.map { Folder(it, it.name) }
         val tracks = children.filter { it.isAudio() }.map { trackOf(it) }
@@ -42,9 +48,11 @@ class Library {
 
     /** Resolves a stored id back to a track, or null if the file is gone. */
     fun resolve(id: String): Track? {
-        val file = File(root, id)
+        val file = File(root, id).takeIf { it.isFile } ?: File(legacyRoot, id)
         return if (file.isFile && file.isAudio()) trackOf(file) else null
     }
+
+    fun isSource(file: File) = file in sources
 
     /**
      * All-files access is the only reliable read on Wear: READ_MEDIA_AUDIO serves files through
@@ -56,13 +64,13 @@ class Library {
     /** Why the library looks empty, so a permission problem never reads as "no books". */
     fun emptyReason(): String = when {
         !hasFullAccess() -> ACCESS_HINT
-        !root.exists() -> "No /$LIBRARY_DIR folder"
-        root.listFiles() == null -> "Cannot read /$LIBRARY_DIR"
+        sources.none { it.isDirectory } -> "No " + LIBRARY_DIRS.joinToString(", ") { "/$it" }
+        sources.none { it.listFiles() != null } -> "Cannot read the folders"
         else -> "No books yet"
     }
 
-    /** Recursive so one call removes a single track or a whole book folder. */
-    fun delete(entry: Entry): Boolean = entry.file.deleteRecursively()
+    /** Recursive, so one call removes a track or a book folder — never a whole source folder. */
+    fun delete(entry: Entry): Boolean = !isSource(entry.file) && entry.file.deleteRecursively()
 
     /** Ids are paths relative to the root, so moving the whole library keeps every position. */
     fun idOf(file: File) = file.absolutePath.removePrefix(root.absolutePath).trimStart('/')

@@ -160,8 +160,11 @@ private fun BrowseScreen(
                 }
             }
             items(entries, key = { it.file.path }) { entry ->
-                DeletableEntry(entry, vm) {
-                    if (entry is Folder) onEnter(entry.file) else onPlay(entry as Track)
+                val open = { if (entry is Folder) onEnter(entry.file) else onPlay(entry as Track) }
+                if (vm.library.isSource(entry.file)) {
+                    EntryChip(entry, vm, open)
+                } else {
+                    DeletableEntry(entry, vm, open)
                 }
             }
             // Shown alongside whatever did surface, so a partly readable library is never silent.
@@ -227,18 +230,24 @@ private fun DeletableEntry(entry: Entry, vm: PlayerViewModel, onClick: () -> Uni
             )
         },
     ) {
-        if (entry is Folder) {
-            BookChip(entry.name, null, accentFor(entry.name), null, onClick)
-        } else {
-            val track = entry as Track
-            BookChip(
-                label = track.name,
-                secondary = remainingLabel(vm.progress, track.id),
-                accent = accentFor(track.name),
-                fraction = playedFraction(vm.progress, track.id),
-                onClick = onClick,
-            )
-        }
+        EntryChip(entry, vm, onClick)
+    }
+}
+
+@UnstableApi
+@Composable
+private fun EntryChip(entry: Entry, vm: PlayerViewModel, onClick: () -> Unit) {
+    if (entry is Folder) {
+        BookChip(entry.name, null, accentFor(entry.name), null, onClick)
+    } else {
+        val track = entry as Track
+        BookChip(
+            label = track.name,
+            secondary = remainingLabel(vm.progress, track.id),
+            accent = accentFor(track.name),
+            fraction = playedFraction(vm.progress, track.id),
+            onClick = onClick,
+        )
     }
 }
 
