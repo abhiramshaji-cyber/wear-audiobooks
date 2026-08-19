@@ -109,3 +109,11 @@ Requires JDK 17 and the Android SDK.
 
 R8 is off in release on purpose: shrinking would make the shipped app differ from the one tested on
 the emulator, and there is nothing here worth shrinking.
+
+## Contributing
+
+Issues and pull requests are welcome. Please test on a round display and say which watch you used. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
